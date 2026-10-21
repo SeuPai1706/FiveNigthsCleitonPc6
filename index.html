@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>FNAC PC++ 6.0</title>
+    <style>
+        body { 
+            background: #000; color: #fff; font-family: monospace; text-align: center; margin: 0; 
+            user-select: none; overflow: hidden;
+        }
+        #game-outer-container { display: flex; justify-content: center; align-items: center; width: 100vw; height: 100vh; background: #000; }
+        #game-container { width: 1024px; height: 768px; position: relative; border: 2px solid #333; background: #000; overflow: hidden; }
+        
+        .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; z-index: 100; }
+        
+        #menu-screen { 
+            background-image: url('menu.png'); background-size: cover; background-position: center; 
+            align-items: flex-start; padding-left: 60px; justify-content: center;
+        }
+
+        #shop-screen { background: #000; overflow-y: scroll; padding: 40px; text-align: left; }
+        #shop-screen::-webkit-scrollbar { width: 10px; }
+        #shop-screen::-webkit-scrollbar-thumb { background: #444; }
+        .shop-item { border: 1px solid #fff; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+
+        #credits-screen { background: #000; align-items: center; justify-content: center; color: #fff; }
+        .credits-list { text-align: left; font-size: 20px; line-height: 1.6; list-style-type: decimal; margin-bottom: 30px; }
+
+        .game-title { text-align: left; font-size: 48px; line-height: 1.1; margin-bottom: 40px; text-shadow: 3px 3px #000; font-weight: bold; }
+        .button-stack { display: flex; flex-direction: column; gap: 15px; }
+
+        #transition-screen { background: #000; z-index: 4000; align-items: center; justify-content: center; }
+        
+        .menu-btn { padding: 15px 30px; font-size: 22px; background: rgba(0,0,0,0.8); color: #fff; border: 2px solid #fff; cursor: pointer; width: 220px; text-align: left; }
+        .menu-btn:hover { background: #fff; color: #000; transition: 0.2s; }
+        
+        .hardcore-btn { border-color: #f00 !important; color: #f00 !important; }
+        .hardcore-btn:hover { background: #f00 !important; color: #000 !important; }
+
+        .back-btn-small { padding: 5px 10px; font-size: 14px; background: #222; color: #fff; border: 1px solid #fff; cursor: pointer; margin-top: 10px; width: 80px; align-self: center; }
+
+        .zerado { border-color: #0f0 !important; color: #0f0 !important; }
+        .zerado:hover { background: #0f0 !important; color: #000 !important; }
+
+        #hud { display: flex; justify-content: space-around; background: #111; padding: 12px; border-bottom: 2px solid #444; z-index: 50; position: relative; font-size: 14px; }
+        
+        #monitor { height: 579px; position: relative; background-color: #000; overflow: hidden; z-index: 5; }
+        #cam-fundo { position: absolute; width: 100%; height: 100%; background-size: 100% 100%; z-index: 1; }
+        #cam-sprite { position: absolute; width: 100%; height: 100%; background-size: 100% 100%; z-index: 2; pointer-events: none; }
+        #cam-mesa { position: absolute; width: 100%; height: 100%; background-size: 100% 100%; z-index: 3; pointer-events: none; }
+
+        #controls { height: 137px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 18px; background: #1a1a1a; z-index: 50; position: relative; }
+        .control-btn { background: #222; color: #eee; border: 2px solid #444; cursor: pointer; text-transform: uppercase; font-weight: bold; font-family: monospace; }
+        
+        #math-ui { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            background: rgba(255, 255, 255, 0.95); color: #000; padding: 30px; border: 4px solid #f00; z-index: 200; min-width: 250px; border-radius: 8px;
+        }
+
+        #jumpscare-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5000; background: #000; display: flex; align-items: center; justify-content: center; }
+        #jumpscare-img { width: 100%; height: 100%; object-fit: cover; }
+
+        .hidden { display: none !important; }
+        .shake { animation: shake-anim 0.05s infinite; }
+        @keyframes shake-anim { 0% { transform: translate(2px, 2px); } 50% { transform: translate(-3px, -2px); } 100% { transform: translate(2px, 3px); } }
+        @keyframes blink-red { 0% { background: #222; } 50% { background: #ff0000; } 100% { background: #222; } }
+        .blink { animation: blink-red 0.4s infinite !important; }
+    </style>
+</head>
+<body>
+    <audio id="audio-lobby" src="lobby.mp3" loop></audio>
+    <audio id="audio-trilha" src="musica_tensa.mp3" loop></audio>
+    <audio id="audio-jumpscare" src="gritos.mp3"></audio>
+
+    <div id="game-outer-container">
+        <div id="game-container">
+            <div id="jumpscare-container" class="hidden"><img id="jumpscare-img" src="cleiton_jumpscare.png"></div>
+
+            <div id="transition-screen" class="screen hidden">
+                <h1 id="trans-night-text" style="font-size: 70px;">NOITE 1</h1>
+                <button id="btn-start-night" class="menu-btn" style="text-align:center; width: auto;">INICIAR NOITE</button>
+                <button id="btn-trans-back" class="back-btn-small">SAIR</button>
+            </div>
+
+            <div id="menu-screen" class="screen">
+                <div class="game-title">Five<br>Nights<br>At<br>Cleiton</div>
+                <div id="main-btns" class="button-stack">
+                    <button id="btn-play" class="menu-btn">JOGAR</button>
+                    <button id="btn-shop" class="menu-btn">LOJA</button>
+                    <button id="btn-credits" class="menu-btn">CRÉDITOS</button>
+                </div>
+                <div id="diff-btns" class="button-stack hidden">
+                    <button id="btn-facil" class="menu-btn">FÁCIL</button>
+                    <button id="btn-normal" class="menu-btn">NORMAL</button>
+                    <button id="btn-dificil" class="menu-btn">DIFÍCIL</button>
+                    <button id="btn-hardcore" class="menu-btn hardcore-btn hidden">HARDCORE</button>
+                    <button id="btn-diff-back" class="back-btn-small">VOLTAR</button>
+                </div>
+            </div>
+
+            <div id="credits-screen" class="screen hidden">
+                <h1 style="font-size: 40px; margin-bottom: 20px;">CRÉDITOS</h1>
+                <ol class="credits-list">
+                    <li>Pedro Hostim</li>
+                    <li>Lucas Piva</li>
+                    <li>Davi Lucas</li>
+                    <li>Jhoxan Bolaños</li>
+                    <li>Prof Cleiton Sá</li>
+                    <li>Turma: 7º Ano B</li>
+                </ol>
+                <button id="btn-credits-back" class="menu-btn" style="text-align: center; width: auto;">VOLTAR</button>
+            </div>
+
+            <div id="shop-screen" class="screen hidden">
+                <h1>Loja Tech (SC: <span id="sc-val">0</span>)</h1>
+                <div class="shop-item"><span>Sensor Aprimorado</span> <button id="buy-sensor">10 SC</button></div>
+                <div class="shop-item"><span>Bateria Extra</span> <button id="buy-bateria">25 SC</button></div>
+                <div class="shop-item"><span>Chip de Economia</span> <button id="buy-chip">50 SC</button></div>
+                <div class="shop-item"><span>Modo Hardcore</span> <button id="buy-hardcore">50 SC</button></div>
+                <div class="shop-item"><span>Chip Rastreador</span> <button id="buy-rastreador">100 SC</button></div>
+                <button id="btn-close-shop" class="menu-btn" style="margin-top: 20px;">FECHAR LOJA</button>
+            </div>
+
+            <div id="game-ui" class="hidden">
+                <div id="hud">
+                    <div>ENERGIA: <span id="energy-val">100</span>%</div>
+                    <div>NOITE: <span id="night-val">1</span></div>
+                    <div>TEMPO: <span id="clock-val">12</span> AM</div>
+                    <div id="tracker-ui" class="hidden">CLEITON: <span id="cleiton-pos-text">OFFLINE</span></div>
+                </div>
+                <div id="monitor">
+                    <div id="cam-fundo"></div>
+                    <div id="cam-sprite"></div>
+                    <div id="cam-mesa"></div>
+                    <div id="math-ui" class="hidden">
+                        <div id="btn-close-math" style="float:right; cursor:pointer; color:red; font-weight:bold; font-size: 20px;">X</div>
+                        <p id="math-question" style="font-weight:bold; color: #000; font-size: 18px;"></p>
+                        <input type="number" id="math-answer" style="width: 100px; font-size: 18px;">
+                        <button id="btn-check-math">OK</button>
+                    </div>
+                </div>
+                <div id="controls">
+                    <button id="btn-cam1" class="control-btn">CAM 01</button>
+                    <button id="btn-cam2" class="control-btn">CAM 02</button>
+                    <button id="btn-cam3" class="control-btn">CAM 03</button>
+                    <button id="door-btn" class="control-btn">PORTA</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    (function() {
+        const MASK = 0x5A;
+
+        let _energy = 100 ^ MASK;
+        let _clock = 12 ^ MASK;
+        let _cleitonPos = 0 ^ MASK;
+        let _sc = loadSC() ^ MASK;
+
+        function saveSC(valorReal) {
+            const dynamicMask = Math.floor(Math.random() * 255) + 1;
+            const valorMascarado = valorReal ^ dynamicMask;
+            sessionStorage.setItem('sc_data', `${dynamicMask}:${valorMascarado}`);
+        }
+
+        function loadSC() {
+            const raw = sessionStorage.getItem('sc_data');
+            if (!raw) {
+                const oldSc = sessionStorage.getItem('sc');
+                return oldSc ? parseInt(oldSc, 10) : 0;
+            }
+            const [mask, valorMascarado] = raw.split(':').map(Number);
+            return valorMascarado ^ mask;
+        }
+
+        function getEnergy() { return _energy ^ MASK; }
+        function setEnergy(val) { _energy = val ^ MASK; }
+
+        function getClock() { return _clock ^ MASK; }
+        function setClock(val) { _clock = val ^ MASK; }
+
+        function getCleitonPos() { return _cleitonPos ^ MASK; }
+        function setCleitonPos(val) { _cleitonPos = val ^ MASK; }
+
+        function getSC() { return _sc ^ MASK; }
+        function setSC(val) { 
+            _sc = val ^ MASK; 
+            saveSC(val);
+        }
+
+        let currentNight = 1, currentDifficulty = 'normal';
+        let gameActive = false, doorClosed = false, currentRoom = "";
+        let moveTimer = null, clockTimer = null, jumpscareTimer = null;
+        let savedQuestion = null, savedAnswer = null;
+
+        const diffTimes = Object.freeze({ 'facil': 13000, 'normal': 10000, 'dificil': 8000, 'hardcore': 5000 });
+        const roomNames = Object.freeze(["INÍCIO", "CAM 01", "CAM 02", "CAM 03", "PORTA"]);
+
+        window.addEventListener('DOMContentLoaded', () => {
+            let sn = sessionStorage.getItem('night'), sd = sessionStorage.getItem('difficulty');
+            const lobbySom = document.getElementById('audio-lobby');
+            const jumpscareSom = document.getElementById('audio-jumpscare');
+            lobbySom.volume = 0.3; jumpscareSom.volume = 1.0;
+            atualizarBotoesZerados();
+            
+            if (sn && sd) {
+                currentNight = parseInt(sn, 10); 
+                currentDifficulty = sd;
+                document.getElementById('menu-screen').classList.add('hidden');
+                document.getElementById('trans-night-text').innerText = "NOITE " + currentNight;
+                document.getElementById('transition-screen').classList.remove('hidden');
+            }
+            bindEvents();
+        });
+
+        function bindEvents() {
+            document.getElementById('btn-play').addEventListener('click', iniciarMenu);
+            document.getElementById('btn-shop').addEventListener('click', () => { openShop(); tocarLobby(); });
+            document.getElementById('btn-credits').addEventListener('click', () => { abrirCreditos(); tocarLobby(); });
+            
+            document.getElementById('btn-facil').addEventListener('click', () => setupGame('facil'));
+            document.getElementById('btn-normal').addEventListener('click', () => setupGame('normal'));
+            document.getElementById('btn-dificil').addEventListener('click', () => setupGame('dificil'));
+            document.getElementById('btn-hardcore').addEventListener('click', () => setupGame('hardcore'));
+            document.getElementById('btn-diff-back').addEventListener('click', voltarParaMain);
+
+            document.getElementById('btn-start-night').addEventListener('click', startActiveNight);
+            document.getElementById('btn-trans-back').addEventListener('click', voltarAoMenu);
+            
+            document.getElementById('btn-credits-back').addEventListener('click', fecharCreditos);
+            document.getElementById('btn-close-shop').addEventListener('click', closeShop);
+
+            document.getElementById('buy-sensor').addEventListener('click', () => buy(10, 'sensor'));
+            document.getElementById('buy-bateria').addEventListener('click', () => buy(25, 'bateria'));
+            document.getElementById('buy-chip').addEventListener('click', () => buy(50, 'chip'));
+            document.getElementById('buy-hardcore').addEventListener('click', () => buy(50, 'hardcore'));
+            document.getElementById('buy-rastreador').addEventListener('click', () => buy(100, 'rastreador'));
+
+            document.getElementById('btn-close-math').addEventListener('click', cancelMath);
+            document.getElementById('btn-check-math').addEventListener('click', checkMath);
+
+            document.getElementById('btn-cam1').addEventListener('click', () => changeRoom('corredor_fundo'));
+            document.getElementById('btn-cam2').addEventListener('click', () => changeRoom('lab_fundo'));
+            document.getElementById('btn-cam3').addEventListener('click', () => changeRoom('biblioteca_fundo'));
+            document.getElementById('door-btn').addEventListener('click', openMathPopup);
+
+            document.getElementById('math-answer').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') checkMath();
+            });
+        }
+
+        function abrirCreditos() {
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('credits-screen').classList.remove('hidden');
+        }
+
+        function fecharCreditos() {
+            document.getElementById('credits-screen').classList.add('hidden');
+            document.getElementById('menu-screen').classList.remove('hidden');
+        }
+
+        function tocarLobby() {
+            const lobbySom = document.getElementById('audio-lobby');
+            if (lobbySom.paused) { lobbySom.volume = 0.3; lobbySom.play().catch(() => {}); }
+        }
+
+        function voltarParaMain() {
+            document.getElementById('diff-btns').classList.add('hidden');
+            document.getElementById('main-btns').classList.remove('hidden');
+        }
+
+        function voltarAoMenu() {
+            sessionStorage.removeItem('night'); 
+            sessionStorage.removeItem('difficulty');
+            document.getElementById('transition-screen').classList.add('hidden');
+            document.getElementById('menu-screen').classList.remove('hidden');
+            tocarLobby();
+        }
+
+        function openShop() {
+            document.getElementById('sc-val').innerText = getSC();
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('shop-screen').classList.remove('hidden');
+            if(sessionStorage.getItem('buy_sensor')) document.getElementById('buy-sensor').classList.add('hidden');
+            if(sessionStorage.getItem('buy_bateria')) document.getElementById('buy-bateria').classList.add('hidden');
+            if(sessionStorage.getItem('buy_chip')) document.getElementById('buy-chip').classList.add('hidden');
+            if(sessionStorage.getItem('buy_hardcore')) document.getElementById('buy-hardcore').classList.add('hidden');
+            if(sessionStorage.getItem('buy_rastreador')) document.getElementById('buy-rastreador').classList.add('hidden');
+        }
+
+        function closeShop() {
+            document.getElementById('shop-screen').classList.add('hidden');
+            document.getElementById('menu-screen').classList.remove('hidden');
+        }
+
+        function buy(price, itemKey) {
+            let currentSC = getSC();
+            if(currentSC >= price) {
+                setSC(currentSC - price);
+                sessionStorage.setItem('buy_' + itemKey, 'true');
+                document.getElementById('sc-val').innerText = getSC();
+                document.getElementById('buy-' + itemKey).classList.add('hidden');
+            } else { alert("SC INSUFICIENTE!"); }
+        }
+
+        function atualizarBotoesZerados() {
+            if(sessionStorage.getItem('zerou_facil')) document.getElementById('btn-facil').classList.add('zerado');
+            if(sessionStorage.getItem('zerou_normal')) document.getElementById('btn-normal').classList.add('zerado');
+            if(sessionStorage.getItem('zerou_dificil')) document.getElementById('btn-dificil').classList.add('zerado');
+            if(sessionStorage.getItem('zerou_hardcore')) document.getElementById('btn-hardcore').classList.add('zerado');
+        }
+
+        function iniciarMenu() {
+            tocarLobby();
+            document.getElementById('main-btns').classList.add('hidden');
+            document.getElementById('diff-btns').classList.remove('hidden');
+            if(sessionStorage.getItem('buy_hardcore')) document.getElementById('btn-hardcore').classList.remove('hidden');
+            atualizarBotoesZerados();
+        }
+
+        function setupGame(diff) {
+            const lobbySom = document.getElementById('audio-lobby');
+            lobbySom.pause(); lobbySom.currentTime = 0;
+            currentDifficulty = diff; 
+            currentNight = 1;
+            sessionStorage.setItem('night', currentNight);
+            sessionStorage.setItem('difficulty', currentDifficulty);
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('trans-night-text').innerText = "NOITE " + currentNight;
+            document.getElementById('transition-screen').classList.remove('hidden');
+        }
+
+        function startActiveNight() {
+            // Limpeza completa de todos os timers pendentes
+            if (moveTimer) clearTimeout(moveTimer);
+            if (jumpscareTimer) clearTimeout(jumpscareTimer);
+            if (clockTimer) clearInterval(clockTimer);
+
+            gameActive = true;
+            doorClosed = false;
+            setCleitonPos(0); // Garante que o Cleiton volta para a posição inicial
+            setEnergy(sessionStorage.getItem('buy_bateria') ? 120 : 100);
+            setClock(12); 
+            savedQuestion = null;
+
+            // Reseta a interface do botão da porta
+            const doorBtn = document.getElementById('door-btn');
+            if (doorBtn) {
+                doorBtn.classList.remove('blink');
+                doorBtn.innerText = "PORTA";
+                doorBtn.style.background = "#222";
+            }
+
+            // Reseta câmeras
+            document.getElementById('cam-sprite').style.backgroundImage = "none";
+
+            document.getElementById('transition-screen').classList.add('hidden');
+            document.getElementById('game-ui').classList.remove('hidden');
+            
+            const trilha = document.getElementById('audio-trilha');
+            trilha.currentTime = 0;
+            trilha.play().catch(() => {});
+            
+            if(sessionStorage.getItem('buy_rastreador')) {
+                document.getElementById('tracker-ui').classList.remove('hidden');
+                updateTrackerHUD();
+            }
+            
+            updateHUD(); 
+            startClock(); 
+            planMove();
+        }
+
+        function updateHUD() {
+            document.getElementById('energy-val').innerText = getEnergy();
+            document.getElementById('night-val').innerText = currentNight;
+            document.getElementById('clock-val').innerText = getClock();
+        }
+
+        function updateTrackerHUD() {
+            if(!gameActive) return;
+            setTimeout(() => {
+                if(gameActive) {
+                    document.getElementById('cleiton-pos-text').innerText = roomNames[getCleitonPos()];
+                }
+            }, 1500);
+        }
+
+        function startClock() {
+            if (clockTimer) clearInterval(clockTimer);
+            clockTimer = setInterval(() => {
+                let clk = getClock() + 1;
+                if(clk > 12) clk = 1;
+                setClock(clk);
+                document.getElementById('clock-val').innerText = getClock();
+                if(getClock() === 6) winNight();
+            }, 30000);
+        }
+
+        function planMove() {
+            if(!gameActive) return;
+            if(moveTimer) clearTimeout(moveTimer);
+            moveTimer = setTimeout(moveCleiton, diffTimes[currentDifficulty]);
+        }
+
+        function moveCleiton() {
+            if(!gameActive) return;
+            setCleitonPos(getCleitonPos() + 1);
+            
+            if(sessionStorage.getItem('buy_rastreador')) updateTrackerHUD();
+
+            let pos = getCleitonPos();
+            if(pos === 4) {
+                let alertTime = 5000;
+                if(sessionStorage.getItem('buy_sensor')) alertTime = 7000;
+                setTimeout(() => { 
+                    if(gameActive && getCleitonPos() === 4) document.getElementById('door-btn').classList.add('blink');
+                }, Math.max(diffTimes[currentDifficulty] - alertTime, 0));
+                jumpscareTimer = setTimeout(triggerJumpscare, diffTimes[currentDifficulty]);
+            } else { planMove(); }
+        }
+
+        function changeRoom(room) {
+            if(!gameActive || getEnergy() <= 0) return;
+            currentRoom = room;
+            const fundo = document.getElementById('cam-fundo');
+            const sprite = document.getElementById('cam-sprite');
+            const mesa = document.getElementById('cam-mesa');
+            fundo.style.backgroundImage = `url('${room}.png')`;
+            let base = room.replace('_fundo', '');
+            let showCleiton = false;
+            let pos = getCleitonPos();
+            if(base === "corredor" && pos === 1) showCleiton = true;
+            if(base === "lab" && pos === 2) showCleiton = true;
+            if(base === "biblioteca" && pos === 3) showCleiton = true;
+            sprite.style.backgroundImage = showCleiton ? "url('cleiton.png')" : "none";
+            mesa.style.backgroundImage = (base === "lab") ? "url('mesa.png')" : "none";
+            setEnergy(getEnergy() - 1); updateEnergyDisplay();
+        }
+
+        function updateEnergyDisplay() {
+            let currentEng = getEnergy();
+            document.getElementById('energy-val').innerText = Math.max(0, currentEng);
+            if(currentEng <= 0 && gameActive) triggerJumpscare();
+        }
+
+        function openMathPopup() {
+            if (doorClosed || !gameActive) return;
+            if (savedQuestion === null) generateMath();
+            document.getElementById('math-question').innerText = "DESAFIO: " + savedQuestion;
+            document.getElementById('math-ui').classList.remove('hidden');
+            document.getElementById('math-answer').value = ""; document.getElementById('math-answer').focus();
+        }
+
+        function generateMath() {
+            let n1, n2;
+            if(currentNight === 1) { n1 = Math.floor(Math.random()*101); n2 = Math.floor(Math.random()*101); savedQuestion = n1+"+"+n2; savedAnswer = n1+n2; }
+            else if(currentNight === 2) { n1 = Math.floor(Math.random()*101); n2 = Math.floor(Math.random()*(n1+1)); savedQuestion = n1+"-"+n2; savedAnswer = n1-n2; }
+            else if(currentNight === 3) { n1 = Math.floor(Math.random()*11); n2 = Math.floor(Math.random()*11); savedQuestion = n1+ "x"+n2; savedAnswer = n1*n2; }
+            else if(currentNight === 4) { savedAnswer = Math.floor(Math.random()*10)+1; n2 = Math.floor(Math.random()*10)+1; n1 = savedAnswer*n2; savedQuestion = n1+"/"+n2; }
+            else if(currentNight === 5) { n1 = Math.floor(Math.random()*11); savedQuestion = n1+"²"; savedAnswer = n1*n1; }
+            else { savedAnswer = Math.floor(Math.random()*11); n1 = savedAnswer*savedAnswer; savedQuestion = "√"+n1; }
+        }
+
+        function checkMath() {
+            let inputEl = document.getElementById('math-answer');
+            let ans = parseInt(inputEl.value, 10);
+            
+            if (isNaN(ans)) {
+                inputEl.value = "";
+                return;
+            }
+            
+            if (ans === savedAnswer) {
+                doorClosed = true; 
+                savedQuestion = null;
+                document.getElementById('math-ui').classList.add('hidden');
+                const btn = document.getElementById('door-btn');
+                btn.innerText = "FECHADA"; btn.style.background = "#500";
+                let doorPenalty = sessionStorage.getItem('buy_chip') ? 5 : 10;
+                setEnergy(getEnergy() - doorPenalty); updateEnergyDisplay();
+                if(getCleitonPos() === 4) { 
+                    clearTimeout(jumpscareTimer); 
+                    btn.classList.remove('blink'); 
+                    setCleitonPos(0); 
+                    planMove(); 
+                }
+                setTimeout(() => { doorClosed = false; btn.innerText = "PORTA"; btn.style.background = "#222"; }, 5000);
+            } else { document.getElementById('math-ui').classList.add('hidden'); }
+            inputEl.value = "";
+        }
+
+        function cancelMath() { document.getElementById('math-ui').classList.add('hidden'); }
+
+        function triggerJumpscare() {
+            gameActive = false;
+            if (clockTimer) clearInterval(clockTimer); 
+            if (moveTimer) clearTimeout(moveTimer); 
+            if (jumpscareTimer) clearTimeout(jumpscareTimer);
+            
+            sessionStorage.removeItem('night'); 
+            sessionStorage.removeItem('difficulty');
+            document.getElementById('audio-trilha').pause(); 
+            document.getElementById('audio-jumpscare').play();
+            document.getElementById('jumpscare-container').classList.remove('hidden');
+            document.getElementById('game-outer-container').classList.add('shake');
+            setTimeout(() => location.reload(), 2500);
+        }
+
+        function finalWin() {
+            sessionStorage.setItem('zerou_' + currentDifficulty, 'true');
+            let reward = 10;
+            if(currentDifficulty === 'normal') reward = 25;
+            if(currentDifficulty === 'dificil') reward = 50;
+            if(currentDifficulty === 'hardcore') reward = 100;
+            setSC(getSC() + reward);
+            sessionStorage.removeItem('night'); 
+            sessionStorage.removeItem('difficulty');
+        }
+
+        function winNight() {
+            gameActive = false;
+            if (clockTimer) clearInterval(clockTimer); 
+            if (moveTimer) clearTimeout(moveTimer);
+            if (jumpscareTimer) clearTimeout(jumpscareTimer);
+
+            document.getElementById('audio-trilha').pause();
+            document.getElementById('game-ui').classList.add('hidden');
+            savedQuestion = null;
+            
+            currentNight++;
+            if(currentNight > 6) { 
+                finalWin(); 
+                alert("VOCÊ ZEROU O MODO " + currentDifficulty.toUpperCase() + "!"); 
+                sessionStorage.removeItem('night');
+                sessionStorage.removeItem('difficulty');
+                location.reload();
+            } else { 
+                sessionStorage.setItem('night', currentNight);
+                sessionStorage.setItem('difficulty', currentDifficulty);
+                document.getElementById('trans-night-text').innerText = "NOITE " + currentNight;
+                document.getElementById('transition-screen').classList.remove('hidden');
+            }
+        }
+    })();
+    </script>
+</body>
+</html>

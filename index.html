@@ -150,11 +150,13 @@
     </div>
 
 <script>
+    let lixo = document.getElementById('nl-badge-frame');
+    if (lixo) lixo.remove();
     (function() {
         const MASK = 0x5A;
-        let lixo = document.getElementById('nl-badge-frame');
-        if (lixo) {
-            lixo.remove();
+        let lixo1 = document.getElementById('nl-badge-frame');
+        if (lixo1) {
+            lixo1.remove();
         }
         let _energy = 100 ^ MASK;
         let _clock = 12 ^ MASK;
